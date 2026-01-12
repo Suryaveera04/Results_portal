@@ -7,7 +7,7 @@ import Login from './components/Login';
 import ResultView from './components/ResultView';
 import './App.css';
 
-const socket = io('http://localhost:5000');
+const socket = io(process.env.REACT_APP_API_URL?.replace('/api', '') || 'http://localhost:5000');
 
 function App() {
   const [stage, setStage] = useState('landing');
