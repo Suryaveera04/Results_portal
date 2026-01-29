@@ -35,7 +35,7 @@ class ResultService {
       });
       
       const response = await axios.post(
-        'http://125.16.54.154/mitsresults/myresultug?resultid=B.Tech-II-I-R23-Regular-December-2024',
+        'http://125.16.54.154/mitsresults/myresultug?resultid=B.Tech-III-I-R23-Regular-November-2025',
         formData,
         {
           headers: {
