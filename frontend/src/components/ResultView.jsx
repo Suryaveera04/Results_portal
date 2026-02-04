@@ -15,6 +15,11 @@ function ResultView() {
         setStudent(data.student);
       } catch (error) {
         console.error('Result fetch error:', error);
+        if (error.response?.status === 401) {
+          localStorage.clear();
+          alert('Session expired. Please login again.');
+          window.location.reload();
+        }
       }
     };
 
