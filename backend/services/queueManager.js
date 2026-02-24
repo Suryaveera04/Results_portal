@@ -39,23 +39,31 @@ class QueueManager {
   }
 
   async processQueue(io) {
-    const activeCount = await this.getActiveCount();
-    const slots = parseInt(process.env.CONCURRENT_SLOTS) - activeCount;
-    
-    if (slots <= 0) return;
+    try {
+      const activeCount = await this.getActiveCount();
+      const queueLength = await this.getQueueLength();
+      const slots = parseInt(process.env.CONCURRENT_SLOTS) - activeCount;
+      
+      console.log(`[Queue] Active: ${activeCount}, Waiting: ${queueLength}, Available slots: ${slots}`);
+      
+      if (slots <= 0) return;
 
-    for (let i = 0; i < slots; i++) {
-      const item = await redisClient.lPop(QUEUE_KEY);
-      if (!item) break;
-      
-      const queueData = JSON.parse(item);
-      queueData.status = 'ACTIVE';
-      queueData.activatedAt = Date.now();
-      
-      await redisClient.setEx(`${TOKEN_PREFIX}${queueData.token}`, parseInt(process.env.LOGIN_WINDOW), JSON.stringify(queueData));
-      await redisClient.sAdd(ACTIVE_TOKENS_KEY, queueData.token);
-      
-      io.emit('queue_ready', { token: queueData.token });
+      for (let i = 0; i < slots; i++) {
+        const item = await redisClient.lPop(QUEUE_KEY);
+        if (!item) break;
+        
+        const queueData = JSON.parse(item);
+        queueData.status = 'ACTIVE';
+        queueData.activatedAt = Date.now();
+        
+        await redisClient.setEx(`${TOKEN_PREFIX}${queueData.token}`, parseInt(process.env.LOGIN_WINDOW), JSON.stringify(queueData));
+        await redisClient.sAdd(ACTIVE_TOKENS_KEY, queueData.token);
+        
+        console.log(`[Queue] Activated token: ${queueData.token}`);
+        io.emit('queue_ready', { token: queueData.token });
+      }
+    } catch (error) {
+      console.error('[Queue] Process error:', error.message);
     }
   }
 

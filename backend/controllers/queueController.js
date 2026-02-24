@@ -38,6 +38,8 @@ exports.getQueueStatus = async (req, res) => {
     const slotsAvailable = parseInt(process.env.CONCURRENT_SLOTS);
     const estimatedSeconds = position ? Math.ceil((position / slotsAvailable) * avgProcessTime) : 0;
     
+    console.log(`[Status] Token: ${token.substring(0, 8)}..., Status: ${tokenData.status}, Position: ${position}`);
+    
     res.json({
       status: tokenData.status,
       position: position || 0,
