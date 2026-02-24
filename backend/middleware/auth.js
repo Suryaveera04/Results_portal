@@ -15,6 +15,7 @@ const authMiddleware = async (req, res, next) => {
   req.rollNo = decoded.rollNo;
   req.department = decoded.department;
   req.dob = decoded.dob;
+  req.resultConfig = decoded.resultConfig;
   req.sessionToken = token;
   next();
 };

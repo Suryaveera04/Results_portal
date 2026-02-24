@@ -1,9 +1,9 @@
 const jwt = require('jsonwebtoken');
 
 class AuthService {
-  generateToken(rollNo, department, dob) {
+  generateToken(rollNo, department, dob, resultConfig) {
     return jwt.sign(
-      { rollNo, department, dob }, 
+      { rollNo, department, dob, resultConfig }, 
       process.env.JWT_SECRET, 
       { expiresIn: `${process.env.SESSION_DURATION}s` }
     );

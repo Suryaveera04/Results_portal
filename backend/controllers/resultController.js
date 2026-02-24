@@ -2,10 +2,14 @@ const resultService = require('../services/resultService');
 
 exports.getResult = async (req, res) => {
   try {
+    console.log('=== getResult Controller ===');
+    console.log('req.resultConfig:', JSON.stringify(req.resultConfig, null, 2));
+    
     const { result, student } = await resultService.getResult(
       req.rollNo, 
       req.department,
-      req.dob
+      req.dob,
+      req.resultConfig
     );
     res.json({ result, student });
   } catch (error) {
@@ -18,7 +22,8 @@ exports.downloadPDF = async (req, res) => {
     const pdfBuffer = await resultService.generatePDF(
       req.rollNo,
       req.department,
-      req.dob
+      req.dob,
+      req.resultConfig
     );
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename=result_${req.rollNo}.pdf`);
@@ -33,7 +38,8 @@ exports.emailResult = async (req, res) => {
     const email = await resultService.emailResult(
       req.rollNo,
       req.department,
-      req.dob
+      req.dob,
+      req.resultConfig
     );
     res.json({ message: `Result sent to ${email}` });
   } catch (error) {

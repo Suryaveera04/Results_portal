@@ -20,8 +20,47 @@ const DEPT_MAP = {
 };
 
 class ResultService {
-  async getResult(rollNo, department, dob) {
+  buildResultURL(resultConfig) {
+    const { programType, programName, year, semester, regulation, examType, month, examYear } = resultConfig;
+    
+    // Determine endpoint: myresultug or myresultpg
+    const endpoint = programType === 'UG' ? 'myresultug' : 'myresultpg';
+    
+    // Build resultid string: ProgramName-Year-Semester-Regulation-ExamType-Month-Year
+    // Example: B.Tech-III-I-R23-Regular-November-2025 or MBA-I-II-R24-Supplementary-January-2026
+    const program = programType === 'UG' ? 'B.Tech' : programName;
+    const resultId = `${program}-${year}-${semester}-${regulation}-${examType}-${month}-${examYear}`;
+    const url = `http://125.16.54.154/mitsresults/${endpoint}?resultid=${resultId}`;
+    
+    console.log('Generated URL:', url);
+    console.log('Result Config:', resultConfig);
+    
+    return url;
+  }
+
+  async getResult(rollNo, department, dob, resultConfig) {
     try {
+      console.log('=== getResult called ===');
+      console.log('rollNo:', rollNo);
+      
+      if (!resultConfig) {
+        throw new Error('resultConfig is missing! Cannot build URL.');
+      }
+      
+      // Check cache first (5 minute cache)
+      const { redisClient } = require('../config/database');
+      const cacheKey = `result:${rollNo}:${resultConfig.year}:${resultConfig.semester}`;
+      
+      try {
+        const cached = await redisClient.get(cacheKey);
+        if (cached) {
+          console.log('Returning cached result');
+          return JSON.parse(cached);
+        }
+      } catch (cacheErr) {
+        console.log('Cache miss or error:', cacheErr.message);
+      }
+      
       const deptCode = DEPT_MAP[department] || 'CSE';
       
       // Convert DOB from DD-MM-YYYY to YYYY-MM-DD
@@ -34,8 +73,10 @@ class ResultService {
         dateofbirth: formattedDob
       });
       
+      const url = this.buildResultURL(resultConfig);
+      
       const response = await axios.post(
-        'http://125.16.54.154/mitsresults/myresultug?resultid=B.Tech-III-I-R23-Regular-November-2025',
+        url,
         formData,
         {
           headers: {
@@ -56,18 +97,21 @@ class ResultService {
       const subjects = [];
       let sgpa = null;
       let cgpa = null;
+      let totalCredits = null;
       
       // Find result table
       $('table').each((i, table) => {
         $(table).find('tr').each((j, row) => {
           const cells = $(row).find('td');
-          if (cells.length >= 4) {
+          
+          // Check if it's a subject row (has subject code pattern and 5 cells)
+          if (cells.length >= 5) {
             const col1 = $(cells[0]).text().trim();
             const col2 = $(cells[1]).text().trim();
             const col3 = $(cells[2]).text().trim();
             const col4 = $(cells[3]).text().trim();
+            const col5 = $(cells[4]).text().trim();
             
-            // Check if it's a subject row (has subject code pattern)
             if (col1.match(/^\d{2}[A-Z]{3}\d{3}$/) && col2 && col3) {
               subjects.push({
                 code: col1,
@@ -77,14 +121,19 @@ class ResultService {
               });
             }
             
-            // Check for SGPA/CGPA row (last row with numbers)
-            if (col1.match(/^\d+$/) && col2.match(/^\d+$/) && col3.match(/^\d+\.\d+$/) && col4.match(/^\d+\.\d+$/)) {
+            // Check for summary row: Credits Taken | Credits Earned | SGPA | CGPA | Total Credits
+            if (col1.match(/^\d+$/) && col2.match(/^\d+$/) && col3.match(/^\d+\.\d+$/) && col4.match(/^\d+\.\d+$/) && col5.match(/^\d+$/)) {
+              totalCredits = col5; // Total Credits (cumulative)
               sgpa = col3;
               cgpa = col4;
+              console.log('Found summary row - Credits Taken:', col1, 'Credits Earned:', col2, 'SGPA:', col3, 'CGPA:', col4, 'Total Credits:', col5);
             }
           }
         });
       });
+      
+      // Calculate credits earned from current semester subjects
+      const creditsEarned = subjects.reduce((sum, sub) => sum + parseFloat(sub.credits || 0), 0);
 
       const result = {
         rollNo,
@@ -93,18 +142,35 @@ class ResultService {
         subjects,
         sgpa,
         cgpa,
-        status: subjects.length > 0 ? 'PASS' : 'PENDING'
+        status: subjects.length > 0 ? 'PASS' : 'PENDING',
+        year: resultConfig?.year || 'N/A',
+        semester: resultConfig?.semester || 'N/A',
+        creditsEarned: creditsEarned,
+        totalCredits: totalCredits || 'N/A'
       };
 
-      return { result, student: { rollNo, name, department } };
+      console.log('Final Result - Credits Earned:', creditsEarned, 'Total Credits:', totalCredits);
+
+      const responseData = { result, student: { rollNo, name, department, year: resultConfig?.year, semester: resultConfig?.semester } };
+      
+      // Cache result for 10 minutes
+      try {
+        const { redisClient } = require('../config/database');
+        await redisClient.setEx(cacheKey, 600, JSON.stringify(responseData));
+        console.log('Result cached for 10 minutes');
+      } catch (cacheErr) {
+        console.log('Cache save error:', cacheErr.message);
+      }
+
+      return responseData;
     } catch (error) {
       console.error('Error fetching result:', error.message);
       throw new Error('Unable to fetch result. Please check your details and try again.');
     }
   }
 
-  async generatePDF(rollNo, department, dob) {
-    const { result, student } = await this.getResult(rollNo, department, dob);
+  async generatePDF(rollNo, department, dob, resultConfig) {
+    const { result, student } = await this.getResult(rollNo, department, dob, resultConfig);
     
     return new Promise((resolve, reject) => {
       const PDFDocument = require('pdfkit');
@@ -134,9 +200,9 @@ class ResultService {
     });
   }
 
-  async emailResult(rollNo, department, dob) {
+  async emailResult(rollNo, department, dob, resultConfig) {
     const email = `${rollNo}@mits.ac.in`;
-    const pdfBuffer = await this.generatePDF(rollNo, department, dob);
+    const pdfBuffer = await this.generatePDF(rollNo, department, dob, resultConfig);
 
     const nodemailer = require('nodemailer');
     const transporter = nodemailer.createTransport({

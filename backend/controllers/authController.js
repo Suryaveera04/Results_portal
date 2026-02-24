@@ -4,25 +4,30 @@ const sessionController = require('../services/sessionController');
 
 exports.login = async (req, res) => {
   try {
-    const { rollNo, dob, queueToken, department } = req.body;
+    const { rollNo, dob, queueToken, department, resultConfig } = req.body;
+    
+    console.log('=== Login Request ===');
+    console.log('rollNo:', rollNo);
+    console.log('department:', department);
+    console.log('resultConfig:', JSON.stringify(resultConfig, null, 2));
 
     const tokenData = await queueManager.validateToken(queueToken);
     if (!tokenData || tokenData.status !== 'ACTIVE') {
       return res.status(403).json({ error: 'Invalid or expired queue token' });
     }
 
-    if (!rollNo || !dob || !department) {
+    if (!rollNo || !dob || !department || !resultConfig) {
       throw new Error('All fields are required');
     }
 
-    const sessionToken = authService.generateToken(rollNo, department, dob);
+    const sessionToken = authService.generateToken(rollNo, department, dob, resultConfig);
     
     await sessionController.createSession(rollNo, sessionToken);
     await queueManager.consumeToken(queueToken);
 
     res.json({ 
       token: sessionToken,
-      student: { rollNo, department, dob }
+      student: { rollNo, department, dob, resultConfig }
     });
   } catch (error) {
     res.status(401).json({ error: error.message });
