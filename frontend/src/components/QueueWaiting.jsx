@@ -22,7 +22,7 @@ function QueueWaiting({ queueToken, socket, onQueueReady }) {
     };
 
     fetchStatus();
-    const interval = setInterval(fetchStatus, 3000);
+    const interval = setInterval(fetchStatus, 10000); // Increased to 10s to reduce Redis commands
 
     socket.on('queue_ready', (data) => {
       if (data.token === queueToken) onQueueReady();

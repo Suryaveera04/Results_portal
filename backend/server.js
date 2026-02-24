@@ -29,7 +29,7 @@ io.on('connection', (socket) => {
 setInterval(() => {
   queueManager.processQueue(io);
   sessionController.cleanupExpiredSessions();
-}, 5000);
+}, 3000); // Process queue every 3 seconds for faster throughput
 
 const PORT = process.env.PORT || 5000;
 
