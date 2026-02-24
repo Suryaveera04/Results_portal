@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { authAPI } from '../services/api';
 
-function Login({ queueToken, onLoginSuccess }) {
+function Login({ queueToken, resultConfig, onLoginSuccess }) {
   const [rollNo, setRollNo] = useState('');
   const [dob, setDob] = useState('');
   const [department, setDepartment] = useState('');
   const [error, setError] = useState('');
-  const [timeLeft, setTimeLeft] = useState(60);
+  const [timeLeft, setTimeLeft] = useState(45);
+  const [loading, setLoading] = useState(false);
 
   const departments = [
     'Civil Engineering (CE)',
@@ -44,14 +45,25 @@ function Login({ queueToken, onLoginSuccess }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setLoading(true);
     try {
-      const { data } = await authAPI.login({ rollNo, dob, department, queueToken });
+      console.log('Sending login with resultConfig:', resultConfig);
+      
+      // Convert date from YYYY-MM-DD to DD-MM-YYYY for backend
+      const dobParts = dob.split('-');
+      const formattedDob = `${dobParts[2]}-${dobParts[1]}-${dobParts[0]}`;
+      
+      const { data } = await authAPI.login({ rollNo, dob: formattedDob, department, queueToken, resultConfig });
+      console.log('Login response:', data);
       localStorage.setItem('token', data.token);
       localStorage.setItem('student', JSON.stringify(data.student));
       localStorage.setItem('department', department);
+      localStorage.setItem('resultConfig', JSON.stringify(resultConfig));
       onLoginSuccess();
     } catch (err) {
       setError(err.response?.data?.error || 'Login failed');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -91,6 +103,7 @@ function Login({ queueToken, onLoginSuccess }) {
               onMouseLeave={(e) => e.target.style.borderColor = '#ddd'}
               onFocus={(e) => e.target.style.boxShadow = '0 0 0 3px rgba(0,123,255,0.1)'}
               onBlur={(e) => e.target.style.boxShadow = 'none'}
+              onKeyPress={(e) => e.key === 'Enter' && handleSubmit(e)}
               required
             />
           </div>
@@ -98,8 +111,8 @@ function Login({ queueToken, onLoginSuccess }) {
           <div style={styles.inputGroup}>
             <label style={styles.label}>Date of Birth</label>
             <input
-              type="text"
-              placeholder="DD-MM-YYYY (e.g., 04-05-2005)"
+              type="date"
+              placeholder="DD-MM-YYYY"
               value={dob}
               onChange={(e) => setDob(e.target.value)}
               style={styles.input}
@@ -107,6 +120,7 @@ function Login({ queueToken, onLoginSuccess }) {
               onMouseLeave={(e) => e.target.style.borderColor = '#ddd'}
               onFocus={(e) => e.target.style.boxShadow = '0 0 0 3px rgba(0,123,255,0.1)'}
               onBlur={(e) => e.target.style.boxShadow = 'none'}
+              onKeyPress={(e) => e.key === 'Enter' && handleSubmit(e)}
               required
             />
           </div>
@@ -114,18 +128,23 @@ function Login({ queueToken, onLoginSuccess }) {
           <button 
             type="submit" 
             style={styles.button}
+            disabled={loading}
             onMouseEnter={(e) => {
-              e.target.style.background = '#0056b3';
-              e.target.style.transform = 'translateY(-2px)';
-              e.target.style.boxShadow = '0 4px 12px rgba(0,123,255,0.3)';
+              if (!loading) {
+                e.target.style.background = '#0056b3';
+                e.target.style.transform = 'translateY(-2px)';
+                e.target.style.boxShadow = '0 4px 12px rgba(0,123,255,0.3)';
+              }
             }}
             onMouseLeave={(e) => {
-              e.target.style.background = '#007bff';
-              e.target.style.transform = 'translateY(0)';
-              e.target.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
+              if (!loading) {
+                e.target.style.background = '#007bff';
+                e.target.style.transform = 'translateY(0)';
+                e.target.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
+              }
             }}
           >
-            Login
+            {loading ? '⏳ Fetching Result...' : 'Login'}
           </button>
         </form>
         

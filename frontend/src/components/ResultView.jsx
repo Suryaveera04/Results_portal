@@ -4,7 +4,7 @@ import { resultAPI, authAPI } from '../services/api';
 function ResultView() {
   const [result, setResult] = useState(null);
   const [student, setStudent] = useState(null);
-  const [timeLeft, setTimeLeft] = useState(120);
+  const [timeLeft, setTimeLeft] = useState(80);
   const [message, setMessage] = useState('');
 
   useEffect(() => {
@@ -102,6 +102,14 @@ function ResultView() {
             <span style={styles.label}>Department:</span>
             <span style={styles.value}>{student.department}</span>
           </div>
+          <div style={styles.infoRow}>
+            <span style={styles.label}>Year:</span>
+            <span style={styles.value}>{student.year || result.year}</span>
+          </div>
+          <div style={styles.infoRow}>
+            <span style={styles.label}>Semester:</span>
+            <span style={styles.value}>{student.semester || result.semester}</span>
+          </div>
         </div>
 
         <div style={styles.section}>
@@ -152,6 +160,14 @@ function ResultView() {
               ...styles.performanceValue,
               color: result.status === 'PASS' ? '#28a745' : '#dc3545'
             }}>{result.status}</div>
+          </div>
+          <div style={styles.performanceBox}>
+            <div style={styles.performanceLabel}>Credits Earned</div>
+            <div style={styles.performanceValue}>{result.creditsEarned || 0}</div>
+          </div>
+          <div style={styles.performanceBox}>
+            <div style={styles.performanceLabel}>Total Credits</div>
+            <div style={styles.performanceValue}>{result.totalCredits || 0}</div>
           </div>
         </div>
 
