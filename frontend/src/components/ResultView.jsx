@@ -1,24 +1,36 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { resultAPI, authAPI } from '../services/api';
 
 function ResultView() {
+  const navigate = useNavigate();
   const [result, setResult] = useState(null);
   const [student, setStudent] = useState(null);
   const [timeLeft, setTimeLeft] = useState(80);
   const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchResult = async () => {
       try {
+        setLoading(true);
+        setError('');
+        console.log('Fetching result...');
         const { data } = await resultAPI.get();
+        console.log('Result received:', data);
         setResult(data.result);
         setStudent(data.student);
+        setLoading(false);
       } catch (error) {
         console.error('Result fetch error:', error);
+        setLoading(false);
         if (error.response?.status === 401) {
           localStorage.clear();
           alert('Session expired. Please login again.');
-          window.location.reload();
+          navigate('/');
+        } else {
+          setError(error.response?.data?.error || 'Failed to fetch result. Please try again.');
         }
       }
     };
@@ -47,7 +59,7 @@ function ResultView() {
     }
     localStorage.clear();
     alert('Session expired. You have been logged out.');
-    window.location.reload();
+    navigate('/');
   };
 
   const handleDownload = async () => {
@@ -74,337 +86,149 @@ function ResultView() {
     }
   };
 
-  if (!result) return <div style={styles.loading}>Loading...</div>;
+  if (loading) return (
+    <div className="loading-page">
+      <div className="loader"></div>
+      <p style={{ fontSize: '18px', color: '#1a237e', fontWeight: 500, marginTop: '20px' }}>
+        Fetching your result...
+      </p>
+    </div>
+  );
+
+  if (error) return (
+    <div className="card card-medium" style={{ textAlign: 'center' }}>
+      <div style={{ fontSize: '48px', marginBottom: '20px' }}>❌</div>
+      <h2 style={{ color: '#d32f2f', marginBottom: '15px' }}>Error</h2>
+      <p style={{ fontSize: '16px', color: '#666', marginBottom: '25px' }}>{error}</p>
+      <button onClick={() => navigate('/')} className="btn btn-primary">
+        Go Back to Home
+      </button>
+    </div>
+  );
+
+  if (!result) return (
+    <div className="card card-medium" style={{ textAlign: 'center' }}>
+      <div style={{ fontSize: '48px', marginBottom: '20px' }}>⚠️</div>
+      <h2 style={{ color: '#f57c00', marginBottom: '15px' }}>No Result Found</h2>
+      <p style={{ fontSize: '16px', color: '#666', marginBottom: '25px' }}>Unable to load result data.</p>
+      <button onClick={() => navigate('/')} className="btn btn-primary">
+        Go Back to Home
+      </button>
+    </div>
+  );
 
   const minutes = Math.floor(timeLeft / 60);
   const seconds = timeLeft % 60;
 
   return (
-    <div style={styles.container}>
-      <div style={styles.card}>
-        <div style={styles.header}>
-          <h2 style={styles.title}>🎓 Result Card</h2>
-          <div style={styles.timer}>
-            ⏱️ Session expires in: <span style={styles.timerCount}>{minutes}:{seconds.toString().padStart(2, '0')}</span>
-          </div>
+    <div>
+      <div className="card card-wide">
+        {/* Header */}
+        <div className="result-header">
+          <h2 className="page-title" style={{ marginBottom: 0 }}>🎓 Result Card</h2>
+          <span className="timer-badge">
+            ⏱️ Session expires in: <span className="timer-count">{minutes}:{seconds.toString().padStart(2, '0')}</span>
+          </span>
         </div>
-        
-        <div style={styles.studentInfo}>
-          <div style={styles.infoRow}>
-            <span style={styles.label}>Name:</span>
-            <span style={styles.value}>{student.name}</span>
+
+        {/* Student Info */}
+        <div className="info-section">
+          <div className="info-row">
+            <span className="info-label">Name</span>
+            <span className="info-value">{student.name}</span>
           </div>
-          <div style={styles.infoRow}>
-            <span style={styles.label}>Roll No:</span>
-            <span style={styles.value}>{student.rollNo}</span>
+          <div className="info-row">
+            <span className="info-label">Roll No</span>
+            <span className="info-value">{student.rollNo}</span>
           </div>
-          <div style={styles.infoRow}>
-            <span style={styles.label}>Department:</span>
-            <span style={styles.value}>{student.department}</span>
+          <div className="info-row">
+            <span className="info-label">Department</span>
+            <span className="info-value">{student.department}</span>
           </div>
-          <div style={styles.infoRow}>
-            <span style={styles.label}>Year:</span>
-            <span style={styles.value}>{student.year || result.year}</span>
+          <div className="info-row">
+            <span className="info-label">Year</span>
+            <span className="info-value">{student.year || result.year}</span>
           </div>
-          <div style={styles.infoRow}>
-            <span style={styles.label}>Semester:</span>
-            <span style={styles.value}>{student.semester || result.semester}</span>
+          <div className="info-row">
+            <span className="info-label">Semester</span>
+            <span className="info-value">{student.semester || result.semester}</span>
           </div>
         </div>
 
-        <div style={styles.section}>
-          <h3 style={styles.sectionTitle}>📚 Subjects</h3>
-          <div style={styles.tableContainer}>
-            <table style={styles.table}>
-              <thead>
-                <tr style={styles.tableHeader}>
-                  <th style={styles.th}>Code</th>
-                  <th style={styles.th}>Subject Name</th>
-                  <th style={styles.th}>Credits</th>
-                  <th style={styles.th}>Grade</th>
+        {/* Subjects Table */}
+        <h3 style={{ fontSize: '20px', fontWeight: 600, color: '#1a237e', marginBottom: '15px' }}>📚 Subjects</h3>
+        <div className="table-container" style={{ marginBottom: '30px' }}>
+          <table>
+            <thead>
+              <tr>
+                <th>Code</th>
+                <th>Subject Name</th>
+                <th>Credits</th>
+                <th>Grade</th>
+              </tr>
+            </thead>
+            <tbody>
+              {result.subjects.map((sub, idx) => (
+                <tr key={idx}>
+                  <td>{sub.code}</td>
+                  <td>{sub.name}</td>
+                  <td>{sub.credits}</td>
+                  <td>
+                    <span className="grade-badge" style={{
+                      background: sub.grade === 'S' || sub.grade === 'A' ? '#2e7d32' :
+                        sub.grade === 'B' ? '#0277bd' :
+                          sub.grade === 'C' ? '#f57f17' : '#546e7a'
+                    }}>{sub.grade}</span>
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {result.subjects.map((sub, idx) => (
-                  <tr key={idx} style={idx % 2 === 0 ? styles.tableRowEven : styles.tableRowOdd}>
-                    <td style={styles.td}>{sub.code}</td>
-                    <td style={styles.td}>{sub.name}</td>
-                    <td style={styles.td}>{sub.credits}</td>
-                    <td style={styles.td}>
-                      <span style={{
-                        ...styles.gradeBadge,
-                        background: sub.grade === 'S' || sub.grade === 'A' ? '#28a745' : 
-                                   sub.grade === 'B' ? '#17a2b8' : 
-                                   sub.grade === 'C' ? '#ffc107' : '#6c757d'
-                      }}>{sub.grade}</span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+              ))}
+            </tbody>
+          </table>
         </div>
 
-        <div style={styles.performanceSection}>
-          <div style={styles.performanceBox}>
-            <div style={styles.performanceLabel}>SGPA</div>
-            <div style={styles.performanceValue}>{result.sgpa || 'N/A'}</div>
+        {/* Performance */}
+        <div className="performance-row">
+          <div className="performance-box">
+            <div className="performance-label">SGPA</div>
+            <div className="performance-value">{result.sgpa || 'N/A'}</div>
           </div>
-          <div style={styles.performanceBox}>
-            <div style={styles.performanceLabel}>CGPA</div>
-            <div style={styles.performanceValue}>{result.cgpa || 'N/A'}</div>
+          <div className="performance-box">
+            <div className="performance-label">CGPA</div>
+            <div className="performance-value">{result.cgpa || 'N/A'}</div>
           </div>
-          <div style={styles.performanceBox}>
-            <div style={styles.performanceLabel}>Status</div>
-            <div style={{
-              ...styles.performanceValue,
-              color: result.status === 'PASS' ? '#28a745' : '#dc3545'
+          <div className="performance-box">
+            <div className="performance-label">Status</div>
+            <div className="performance-value" style={{
+              color: result.status === 'PASS' ? '#a5d6a7' : '#ef9a9a'
             }}>{result.status}</div>
           </div>
-          <div style={styles.performanceBox}>
-            <div style={styles.performanceLabel}>Credits Earned</div>
-            <div style={styles.performanceValue}>{result.creditsEarned || 0}</div>
+          <div className="performance-box">
+            <div className="performance-label">Credits Earned</div>
+            <div className="performance-value">{result.creditsEarned || 0}</div>
           </div>
-          <div style={styles.performanceBox}>
-            <div style={styles.performanceLabel}>Total Credits</div>
-            <div style={styles.performanceValue}>{result.totalCredits || 0}</div>
+          <div className="performance-box">
+            <div className="performance-label">Total Credits</div>
+            <div className="performance-value">{result.totalCredits || 0}</div>
           </div>
         </div>
 
-        <div style={styles.actions}>
-          <button 
-            onClick={handleDownload} 
-            style={styles.button}
-            onMouseEnter={(e) => {
-              e.target.style.background = '#0056b3';
-              e.target.style.transform = 'translateY(-2px)';
-            }}
-            onMouseLeave={(e) => {
-              e.target.style.background = '#007bff';
-              e.target.style.transform = 'translateY(0)';
-            }}
-          >
+        {/* Actions */}
+        <div className="actions-row">
+          <button onClick={handleDownload} className="btn btn-primary">
             💾 Download PDF
           </button>
-          <button 
-            onClick={handleEmail} 
-            style={styles.buttonSecondary}
-            onMouseEnter={(e) => {
-              e.target.style.background = '#138496';
-              e.target.style.transform = 'translateY(-2px)';
-            }}
-            onMouseLeave={(e) => {
-              e.target.style.background = '#17a2b8';
-              e.target.style.transform = 'translateY(0)';
-            }}
-          >
+          <button onClick={handleEmail} className="btn btn-info">
             📧 Email Result
           </button>
-          <button 
-            onClick={handleLogout} 
-            style={styles.buttonDanger}
-            onMouseEnter={(e) => {
-              e.target.style.background = '#c82333';
-              e.target.style.transform = 'translateY(-2px)';
-            }}
-            onMouseLeave={(e) => {
-              e.target.style.background = '#dc3545';
-              e.target.style.transform = 'translateY(0)';
-            }}
-          >
+          <button onClick={handleLogout} className="btn btn-danger">
             🚪 Logout
           </button>
         </div>
-        
-        {message && <div style={styles.message}>✅ {message}</div>}
+
+        {message && <div className="msg-success">✅ {message}</div>}
       </div>
     </div>
   );
 }
-
-const styles = {
-  container: {
-    minHeight: '100vh',
-    padding: '30px 20px',
-    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
-  },
-  card: {
-    background: 'white',
-    borderRadius: '20px',
-    padding: '40px',
-    maxWidth: '900px',
-    margin: '0 auto',
-    boxShadow: '0 20px 60px rgba(0,0,0,0.3)'
-  },
-  header: {
-    borderBottom: '3px solid #667eea',
-    paddingBottom: '20px',
-    marginBottom: '30px'
-  },
-  title: {
-    fontSize: '32px',
-    fontWeight: '700',
-    color: '#333',
-    marginBottom: '10px',
-    textAlign: 'center'
-  },
-  timer: {
-    textAlign: 'center',
-    fontSize: '16px',
-    color: '#666'
-  },
-  timerCount: {
-    color: '#dc3545',
-    fontWeight: 'bold',
-    fontSize: '18px'
-  },
-  studentInfo: {
-    background: '#f8f9fa',
-    borderRadius: '12px',
-    padding: '20px',
-    marginBottom: '30px'
-  },
-  infoRow: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    padding: '10px 0',
-    borderBottom: '1px solid #dee2e6'
-  },
-  label: {
-    fontWeight: '600',
-    color: '#555'
-  },
-  value: {
-    color: '#333'
-  },
-  section: {
-    marginBottom: '30px'
-  },
-  sectionTitle: {
-    fontSize: '24px',
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: '15px'
-  },
-  tableContainer: {
-    overflowX: 'auto'
-  },
-  table: {
-    width: '100%',
-    borderCollapse: 'collapse',
-    borderRadius: '8px',
-    overflow: 'hidden'
-  },
-  tableHeader: {
-    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-    color: 'white'
-  },
-  th: {
-    padding: '15px',
-    textAlign: 'left',
-    fontWeight: '600'
-  },
-  td: {
-    padding: '12px 15px',
-    borderBottom: '1px solid #dee2e6'
-  },
-  tableRowEven: {
-    background: '#f8f9fa'
-  },
-  tableRowOdd: {
-    background: 'white'
-  },
-  gradeBadge: {
-    padding: '4px 12px',
-    borderRadius: '20px',
-    color: 'white',
-    fontWeight: '600',
-    fontSize: '14px'
-  },
-  performanceSection: {
-    display: 'flex',
-    gap: '20px',
-    marginBottom: '30px'
-  },
-  performanceBox: {
-    flex: 1,
-    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-    borderRadius: '12px',
-    padding: '20px',
-    textAlign: 'center',
-    color: 'white'
-  },
-  performanceLabel: {
-    fontSize: '14px',
-    opacity: 0.9,
-    marginBottom: '8px'
-  },
-  performanceValue: {
-    fontSize: '32px',
-    fontWeight: '700'
-  },
-  actions: {
-    display: 'flex',
-    gap: '15px',
-    flexWrap: 'wrap'
-  },
-  button: {
-    flex: 1,
-    padding: '14px 20px',
-    fontSize: '16px',
-    fontWeight: '600',
-    cursor: 'pointer',
-    background: '#007bff',
-    color: '#fff',
-    border: 'none',
-    borderRadius: '8px',
-    transition: 'all 0.3s ease',
-    minWidth: '150px'
-  },
-  buttonSecondary: {
-    flex: 1,
-    padding: '14px 20px',
-    fontSize: '16px',
-    fontWeight: '600',
-    cursor: 'pointer',
-    background: '#17a2b8',
-    color: '#fff',
-    border: 'none',
-    borderRadius: '8px',
-    transition: 'all 0.3s ease',
-    minWidth: '150px'
-  },
-  buttonDanger: {
-    flex: 1,
-    padding: '14px 20px',
-    fontSize: '16px',
-    fontWeight: '600',
-    cursor: 'pointer',
-    background: '#dc3545',
-    color: '#fff',
-    border: 'none',
-    borderRadius: '8px',
-    transition: 'all 0.3s ease',
-    minWidth: '150px'
-  },
-  message: {
-    textAlign: 'center',
-    color: '#28a745',
-    marginTop: '20px',
-    padding: '12px',
-    background: '#d4edda',
-    borderRadius: '8px',
-    fontSize: '16px'
-  },
-  loading: {
-    minHeight: '100vh',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    fontSize: '24px',
-    color: 'white',
-    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
-  }
-};
 
 export default ResultView;

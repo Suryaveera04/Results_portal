@@ -2,22 +2,39 @@ const queueManager = require('../services/queueManager');
 
 exports.joinQueue = async (req, res) => {
   try {
+    console.log('[Queue] Join request received');
     const token = await queueManager.addToQueue();
+    console.log('[Queue] Token created:', token);
+    
     const position = await queueManager.getQueuePosition(token);
     const queueLength = await queueManager.getQueueLength();
+    console.log('[Queue] Position:', position, 'Queue length:', queueLength);
     
     const avgProcessTime = parseInt(process.env.SESSION_DURATION) + parseInt(process.env.LOGIN_WINDOW);
     const slotsAvailable = parseInt(process.env.CONCURRENT_SLOTS);
     const estimatedSeconds = Math.ceil((position / slotsAvailable) * avgProcessTime);
     
-    res.json({ 
+    setImmediate(() => {
+      const io = req.app.get('io');
+      if (io) {
+        console.log('[Queue] Triggering queue processing');
+        queueManager.processQueue(io);
+      } else {
+        console.error('[Queue] Socket.io not available!');
+      }
+    });
+    
+    const response = { 
       token, 
       position,
       queueLength,
       estimatedWait: estimatedSeconds,
       joinedAt: Date.now()
-    });
+    };
+    console.log('[Queue] Sending response:', response);
+    res.json(response);
   } catch (error) {
+    console.error('[Queue] Join error:', error);
     res.status(500).json({ error: error.message });
   }
 };
@@ -28,17 +45,27 @@ exports.getQueueStatus = async (req, res) => {
     const tokenData = await queueManager.validateToken(token);
     
     if (!tokenData) {
-      return res.status(404).json({ error: 'Invalid token' });
+      return res.status(404).json({ error: 'Invalid or expired token' });
     }
 
+    // If token is ACTIVE, return immediately
+    if (tokenData.status === 'ACTIVE') {
+      return res.json({
+        status: 'ACTIVE',
+        position: 0,
+        queueLength: 0,
+        estimatedWait: 0,
+        joinedAt: tokenData.joinedAt
+      });
+    }
+
+    // If token is WAITING, get position
     const position = await queueManager.getQueuePosition(token);
     const queueLength = await queueManager.getQueueLength();
     
     const avgProcessTime = parseInt(process.env.SESSION_DURATION) + parseInt(process.env.LOGIN_WINDOW);
     const slotsAvailable = parseInt(process.env.CONCURRENT_SLOTS);
     const estimatedSeconds = position ? Math.ceil((position / slotsAvailable) * avgProcessTime) : 0;
-    
-    console.log(`[Status] Token: ${token.substring(0, 8)}..., Status: ${tokenData.status}, Position: ${position}`);
     
     res.json({
       status: tokenData.status,
@@ -56,6 +83,13 @@ exports.leaveQueue = async (req, res) => {
   try {
     const { token } = req.params;
     await queueManager.removeFromQueue(token);
+    
+    // Trigger immediate queue processing after user leaves
+    setImmediate(() => {
+      const io = req.app.get('io');
+      if (io) queueManager.processQueue(io);
+    });
+    
     res.json({ message: 'Removed from queue' });
   } catch (error) {
     res.status(500).json({ error: error.message });

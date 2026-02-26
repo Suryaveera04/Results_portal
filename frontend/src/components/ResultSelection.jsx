@@ -1,45 +1,94 @@
 import React, { useState, useEffect } from 'react';
+import axios from 'axios';
 
-function ResultSelection({ onSelectionComplete }) {
+function ResultSelection({ onSelectionComplete, programType }) {
   const [formData, setFormData] = useState({
-    programType: '',
-    programName: '',
-    year: '',
-    semester: '',
+    programName: programType === 'PG' ? '' : 'B.Tech',
+    yearSemester: '',
     regulation: '',
-    examType: '',
-    month: '',
-    examYear: ''
+    examType: 'Regular'
   });
-  const [timeLeft, setTimeLeft] = useState(60);
+  const [availableLinks, setAvailableLinks] = useState([]);
+  const [selectedLink, setSelectedLink] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [timeLeft, setTimeLeft] = useState(120); // 2 minutes for selection
 
-  const years = ['I', 'II', 'III', 'IV'];
-  const semesters = ['I', 'II'];
-  const regulations = ['R18', 'R20', 'R23', 'R24'];
+  const yearSemesters = [
+    { value: 'I-I', label: 'I Year - I Semester' },
+    { value: 'I-II', label: 'I Year - II Semester' },
+    { value: 'II-I', label: 'II Year - I Semester' },
+    { value: 'II-II', label: 'II Year - II Semester' },
+    { value: 'III-I', label: 'III Year - I Semester' },
+    { value: 'III-II', label: 'III Year - II Semester' },
+    { value: 'IV-I', label: 'IV Year - I Semester' },
+    { value: 'IV-II', label: 'IV Year - II Semester' }
+  ];
+  const regulations = ['R14','R18', 'R20', 'R22','R23', 'R24'];
   const pgPrograms = ['MBA', 'MCA', 'M.Tech'];
-  const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-  const examYears = Array.from({ length: 13 }, (_, i) => 2015 + i);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    if (name === 'programType') {
-      setFormData({ ...formData, [name]: value, programName: value === 'UG' ? 'B.Tech' : '' });
-    } else {
-      setFormData({ ...formData, [name]: value });
+    setFormData({ ...formData, [name]: value });
+    setSelectedLink('');
+    setAvailableLinks([]);
+  };
+
+  const fetchAvailableLinks = async () => {
+    if (!formData.yearSemester || !formData.regulation || !formData.examType) {
+      alert('Please fill Year/Semester, Regulation, and Exam Type first');
+      return;
+    }
+    
+    if (programType === 'PG' && !formData.programName) {
+      alert('Please select Program Name first');
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      const response = await axios.get('http://localhost:5000/api/result-links/available', {
+        params: {
+          programType,
+          programName: formData.programName,
+          yearSemester: formData.yearSemester,
+          regulation: formData.regulation,
+          examType: formData.examType
+        }
+      });
+      setAvailableLinks(response.data.links);
+      if (response.data.links.length === 0) {
+        alert('No results found for the selected criteria');
+      }
+    } catch (error) {
+      alert('Failed to fetch available results');
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    const requiredFields = formData.programType === 'PG' 
-      ? Object.values(formData).every(val => val)
-      : Object.entries(formData).filter(([key]) => key !== 'programName').every(([, val]) => val);
     
-    if (requiredFields) {
-      onSelectionComplete(formData);
-    } else {
-      alert('Please fill all fields');
+    if (!selectedLink) {
+      alert('Please select a result link');
+      return;
     }
+    
+    const selectedResult = availableLinks.find(link => link.resultId === selectedLink);
+    const [year, semester] = formData.yearSemester.split('-');
+    
+    const resultConfig = {
+      programType,
+      programName: formData.programName,
+      year,
+      semester,
+      regulation: formData.regulation,
+      examType: formData.examType,
+      month: selectedResult.month,
+      examYear: selectedResult.examYear
+    };
+    
+    onSelectionComplete(resultConfig);
   };
 
   useEffect(() => {
@@ -59,200 +108,117 @@ function ResultSelection({ onSelectionComplete }) {
   }, []);
 
   return (
-    <div style={styles.container}>
-      <div style={styles.card}>
-        <div style={styles.iconContainer}>
-          <span style={styles.icon}>📋</span>
+    <div>
+      <div className="page-title-section">
+        <span className="page-icon">📋</span>
+        <h2 className="page-title">Select Result Details</h2>
+        <p className="page-subtitle">Choose your examination details below</p>
+        <div style={{ marginTop: '12px' }}>
+          <span className="timer-badge">
+            ⏱️ Time remaining: <span className="timer-count">{timeLeft}s</span>
+          </span>
         </div>
-        <h2 style={styles.title}>Select Result Details</h2>
-        <p style={styles.subtitle}>Choose your examination details</p>
-        <p style={styles.timer}>⏱️ Time remaining: <span style={styles.timerCount}>{timeLeft}s</span></p>
-        
-        <form onSubmit={handleSubmit} style={styles.form}>
-          <div style={styles.formGroup}>
-            <label style={styles.label}>Program Type</label>
-            <select name="programType" value={formData.programType} onChange={handleChange} style={styles.select} required>
-              <option value="">-- Select Program --</option>
-              <option value="UG">UG (Under Graduate)</option>
-              <option value="PG">PG (Post Graduate)</option>
-            </select>
-          </div>
+      </div>
 
-          {formData.programType === 'PG' && (
-            <div style={styles.formGroup}>
-              <label style={styles.label}>Program Name</label>
-              <select name="programName" value={formData.programName} onChange={handleChange} style={styles.select} required>
+      <div className="card card-wide">
+        <form onSubmit={handleSubmit}>
+          {/* Row 1: Program Name (if PG) */}
+          {programType === 'PG' && (
+            <div className="form-group" style={{ marginBottom: '24px' }}>
+              <label className="form-label">Program Name</label>
+              <select name="programName" value={formData.programName} onChange={handleChange} className="form-select" required>
                 <option value="">-- Select Program --</option>
                 {pgPrograms.map(p => <option key={p} value={p}>{p}</option>)}
               </select>
             </div>
           )}
 
-          <div style={styles.row}>
-            <div style={styles.formGroup}>
-              <label style={styles.label}>Year</label>
-              <select name="year" value={formData.year} onChange={handleChange} style={styles.select} required>
-                <option value="">-- Select Year --</option>
-                {years.map(y => <option key={y} value={y}>{y}</option>)}
+          {/* Row 2: Year/Semester + Regulation */}
+          <div className="form-grid-2" style={{ marginBottom: '24px' }}>
+            <div className="form-group">
+              <label className="form-label">Year & Semester</label>
+              <select name="yearSemester" value={formData.yearSemester} onChange={handleChange} className="form-select" required>
+                <option value="">-- Select Year & Semester --</option>
+                {yearSemesters.map(ys => <option key={ys.value} value={ys.value}>{ys.label}</option>)}
               </select>
             </div>
 
-            <div style={styles.formGroup}>
-              <label style={styles.label}>Semester</label>
-              <select name="semester" value={formData.semester} onChange={handleChange} style={styles.select} required>
-                <option value="">-- Select Semester --</option>
-                {semesters.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </div>
-          </div>
-
-          <div style={styles.formGroup}>
-            <label style={styles.label}>Regulation</label>
-            <select name="regulation" value={formData.regulation} onChange={handleChange} style={styles.select} required>
-              <option value="">-- Select Regulation --</option>
-              {regulations.map(r => <option key={r} value={r}>{r}</option>)}
-            </select>
-          </div>
-
-          <div style={styles.formGroup}>
-            <label style={styles.label}>Exam Type</label>
-            <select name="examType" value={formData.examType} onChange={handleChange} style={styles.select} required>
-              <option value="">-- Select Exam Type --</option>
-              <option value="Regular">Regular</option>
-              <option value="Supplementary">Supplementary</option>
-            </select>
-          </div>
-
-          <div style={styles.row}>
-            <div style={styles.formGroup}>
-              <label style={styles.label}>Examination Month</label>
-              <select name="month" value={formData.month} onChange={handleChange} style={styles.select} required>
-                <option value="">-- Select Month --</option>
-                {months.map(m => <option key={m} value={m}>{m}</option>)}
-              </select>
-            </div>
-
-            <div style={styles.formGroup}>
-              <label style={styles.label}>Examination Year</label>
-              <select name="examYear" value={formData.examYear} onChange={handleChange} style={styles.select} required>
-                <option value="">-- Select Year --</option>
-                {examYears.map(y => <option key={y} value={y}>{y}</option>)}
+            <div className="form-group">
+              <label className="form-label">Regulation</label>
+              <select name="regulation" value={formData.regulation} onChange={handleChange} className="form-select" required>
+                <option value="">-- Select Regulation --</option>
+                {regulations.map(r => <option key={r} value={r}>{r}</option>)}
               </select>
             </div>
           </div>
 
-          <button 
-            type="submit" 
-            style={styles.button}
-            onMouseEnter={(e) => {
-              e.target.style.background = 'linear-gradient(135deg, #0056b3 0%, #003d82 100%)';
-              e.target.style.transform = 'translateY(-3px)';
-            }}
-            onMouseLeave={(e) => {
-              e.target.style.background = 'linear-gradient(135deg, #007bff 0%, #0056b3 100%)';
-              e.target.style.transform = 'translateY(0)';
-            }}
+          {/* Row 3: Exam Type Checkboxes */}
+          <div className="form-group" style={{ marginBottom: '24px' }}>
+            <label className="form-label">Examination Type</label>
+            <div style={{ display: 'flex', gap: '20px', marginTop: '8px' }}>
+              <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                <input
+                  type="radio"
+                  name="examType"
+                  value="Regular"
+                  checked={formData.examType === 'Regular'}
+                  onChange={handleChange}
+                  style={{ marginRight: '8px', cursor: 'pointer' }}
+                />
+                Regular
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                <input
+                  type="radio"
+                  name="examType"
+                  value="Supplementary"
+                  checked={formData.examType === 'Supplementary'}
+                  onChange={handleChange}
+                  style={{ marginRight: '8px', cursor: 'pointer' }}
+                />
+                Supplementary
+              </label>
+            </div>
+          </div>
+
+          {/* Fetch Links Button */}
+          <button
+            type="button"
+            onClick={fetchAvailableLinks}
+            className="btn btn-primary btn-lg btn-full"
+            style={{ marginBottom: '24px' }}
+            disabled={loading}
           >
-             Continue to Login
+            {loading ? '🔄 Fetching...' : '🔍 Fetch Available Results'}
+          </button>
+
+          {/* Available Links Selection */}
+          {availableLinks.length > 0 && (
+            <div className="form-group" style={{ marginBottom: '32px' }}>
+              <label className="form-label">Select Result Link</label>
+              <select
+                value={selectedLink}
+                onChange={(e) => setSelectedLink(e.target.value)}
+                className="form-select"
+                required
+              >
+                <option value="">-- Select Result --</option>
+                {availableLinks.map(link => (
+                  <option key={link.resultId} value={link.resultId}>
+                    {link.month} {link.examYear}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          <button type="submit" className="btn btn-primary btn-lg btn-full" disabled={!selectedLink}>
+            ➡️ Continue to Login
           </button>
         </form>
       </div>
     </div>
   );
 }
-
-const styles = {
-  container: {
-    minHeight: '100vh',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: '20px',
-    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
-  },
-  card: {
-    background: 'white',
-    borderRadius: '20px',
-    padding: '40px',
-    maxWidth: '600px',
-    width: '100%',
-    boxShadow: '0 20px 60px rgba(0,0,0,0.3)'
-  },
-  iconContainer: {
-    textAlign: 'center',
-    marginBottom: '20px'
-  },
-  icon: {
-    fontSize: '60px',
-    display: 'inline-block'
-  },
-  title: {
-    fontSize: '28px',
-    fontWeight: '700',
-    color: '#333',
-    textAlign: 'center',
-    marginBottom: '10px'
-  },
-  subtitle: {
-    fontSize: '16px',
-    color: '#666',
-    textAlign: 'center',
-    marginBottom: '10px'
-  },
-  timer: {
-    textAlign: 'center',
-    fontSize: '14px',
-    color: '#666',
-    marginBottom: '20px'
-  },
-  timerCount: {
-    color: '#dc3545',
-    fontWeight: 'bold',
-    fontSize: '16px'
-  },
-  form: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '20px'
-  },
-  row: {
-    display: 'flex',
-    gap: '15px'
-  },
-  formGroup: {
-    flex: 1,
-    display: 'flex',
-    flexDirection: 'column'
-  },
-  label: {
-    fontSize: '14px',
-    fontWeight: '600',
-    color: '#555',
-    marginBottom: '8px'
-  },
-  select: {
-    padding: '12px 15px',
-    fontSize: '16px',
-    border: '2px solid #e0e0e0',
-    borderRadius: '8px',
-    outline: 'none',
-    transition: 'all 0.3s ease',
-    background: 'white',
-    cursor: 'pointer'
-  },
-  button: {
-    padding: '16px',
-    fontSize: '18px',
-    fontWeight: '600',
-    cursor: 'pointer',
-    background: 'linear-gradient(135deg, #007bff 0%, #0056b3 100%)',
-    color: '#fff',
-    border: 'none',
-    borderRadius: '50px',
-    transition: 'all 0.3s ease',
-    boxShadow: '0 4px 15px rgba(0,123,255,0.3)',
-    marginTop: '10px'
-  }
-};
 
 export default ResultSelection;

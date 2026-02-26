@@ -32,6 +32,12 @@ class SessionController {
   async endSession(token, rollNo) {
     await redisClient.del(`${SESSION_PREFIX}${token}`);
     await redisClient.hDel(ACTIVE_SESSIONS_KEY, rollNo);
+    
+    // Clear user's cached result data
+    const keys = await redisClient.keys(`result:${rollNo}:*`);
+    if (keys.length > 0) {
+      await redisClient.del(keys);
+    }
   }
 
   async cleanupExpiredSessions() {
@@ -40,6 +46,12 @@ class SessionController {
       const exists = await redisClient.exists(`${SESSION_PREFIX}${token}`);
       if (!exists) {
         await redisClient.hDel(ACTIVE_SESSIONS_KEY, rollNo);
+        
+        // Clear expired user's cached result data
+        const keys = await redisClient.keys(`result:${rollNo}:*`);
+        if (keys.length > 0) {
+          await redisClient.del(keys);
+        }
       }
     }
   }

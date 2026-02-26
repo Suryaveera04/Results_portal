@@ -15,8 +15,9 @@ class QueueManager {
     };
     
     await redisClient.rPush(QUEUE_KEY, JSON.stringify(queueData));
-    await redisClient.setEx(`${TOKEN_PREFIX}${token}`, 3600, JSON.stringify(queueData));
+    await redisClient.setEx(`${TOKEN_PREFIX}${token}`, 1800, JSON.stringify(queueData)); // 30 minutes
     
+    console.log('[Queue] Token created:', token, 'expires in 1800 seconds');
     return token;
   }
 
@@ -44,8 +45,6 @@ class QueueManager {
       const queueLength = await this.getQueueLength();
       const slots = parseInt(process.env.CONCURRENT_SLOTS) - activeCount;
       
-      console.log(`[Queue] Active: ${activeCount}, Waiting: ${queueLength}, Available slots: ${slots}`);
-      
       if (slots <= 0) return;
 
       for (let i = 0; i < slots; i++) {
@@ -56,10 +55,11 @@ class QueueManager {
         queueData.status = 'ACTIVE';
         queueData.activatedAt = Date.now();
         
-        await redisClient.setEx(`${TOKEN_PREFIX}${queueData.token}`, parseInt(process.env.LOGIN_WINDOW), JSON.stringify(queueData));
+        // Set token to expire after 30 minutes
+        await redisClient.setEx(`${TOKEN_PREFIX}${queueData.token}`, 1800, JSON.stringify(queueData));
         await redisClient.sAdd(ACTIVE_TOKENS_KEY, queueData.token);
         
-        console.log(`[Queue] Activated token: ${queueData.token}`);
+        console.log('[Queue] Token activated:', queueData.token, 'expires in 1800 seconds');
         io.emit('queue_ready', { token: queueData.token });
       }
     } catch (error) {
@@ -88,6 +88,7 @@ class QueueManager {
       }
     }
     await redisClient.del(`${TOKEN_PREFIX}${token}`);
+    await redisClient.sRem(ACTIVE_TOKENS_KEY, token);
   }
 }
 

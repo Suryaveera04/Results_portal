@@ -1,4 +1,5 @@
 const resultService = require('../services/resultService');
+const { redisClient } = require('../config/database');
 
 exports.getResult = async (req, res) => {
   try {
@@ -42,6 +43,15 @@ exports.emailResult = async (req, res) => {
       req.resultConfig
     );
     res.json({ message: `Result sent to ${email}` });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.clearCache = async (req, res) => {
+  try {
+    await redisClient.flushDb();
+    res.json({ message: 'Cache cleared successfully' });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

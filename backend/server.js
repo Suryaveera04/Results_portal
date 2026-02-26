@@ -9,14 +9,27 @@ const sessionController = require('./services/sessionController');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: '*' } });
+const io = new Server(server, { 
+  cors: { 
+    origin: ['http://localhost:3000', 'http://localhost:3001'],
+    methods: ['GET', 'POST'],
+    credentials: true
+  } 
+});
 
-app.use(cors());
+app.use(cors({
+  origin: ['http://localhost:3000', 'http://localhost:3001'],
+  credentials: true
+}));
 app.use(express.json());
+
+// Make io accessible in routes
+app.set('io', io);
 
 app.use('/api/queue', require('./routes/queue'));
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/result', require('./routes/result'));
+app.use('/api/result-links', require('./routes/resultLinks'));
 
 io.on('connection', (socket) => {
   console.log('Client connected:', socket.id);
@@ -29,7 +42,7 @@ io.on('connection', (socket) => {
 setInterval(() => {
   queueManager.processQueue(io);
   sessionController.cleanupExpiredSessions();
-}, 3000); // Process queue every 3 seconds for faster throughput
+}, 3000);
 
 const PORT = process.env.PORT || 5000;
 

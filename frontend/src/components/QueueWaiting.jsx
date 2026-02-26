@@ -5,32 +5,68 @@ function QueueWaiting({ queueToken, socket, onQueueReady }) {
   const [status, setStatus] = useState({ position: 0, queueLength: 0, estimatedWait: 0, joinedAt: Date.now() });
   const [countdown, setCountdown] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     if (!queueToken) return;
 
+    // Store token immediately
+    sessionStorage.setItem('queueToken', queueToken);
+    console.log('Token stored in sessionStorage:', queueToken);
+
     const fetchStatus = async () => {
       try {
         const { data } = await queueAPI.getStatus(queueToken);
+        console.log('Queue status response:', data);
         setStatus(data);
         setLoading(false);
-        if (data.status === 'ACTIVE') onQueueReady();
+        
+        // Check if already active or position is 0
+        if (data.status === 'ACTIVE' || data.position === 0) {
+          console.log('Queue ready! Token:', queueToken);
+          sessionStorage.setItem('queueToken', queueToken);
+          onQueueReady();
+        }
       } catch (error) {
         console.error('Queue status error:', error);
         setLoading(false);
+        if (error.response?.status === 404) {
+          console.error('Token not found - it may have expired');
+          setError('Queue token expired. Please refresh and try again.');
+        }
       }
     };
 
     fetchStatus();
-    const interval = setInterval(fetchStatus, 10000); // Increased to 10s to reduce Redis commands
+    const interval = setInterval(fetchStatus, 3000);
 
-    socket.on('queue_ready', (data) => {
-      if (data.token === queueToken) onQueueReady();
-    });
+    try {
+      socket.on('queue_ready', (data) => {
+        console.log('Socket event received:', data);
+        console.log('My token:', queueToken);
+        if (data.token === queueToken) {
+          console.log('Token matched! Moving to next page...');
+          onQueueReady();
+        } else {
+          console.log('Token mismatch - this event is for another user');
+        }
+      });
+
+      socket.on('connect_error', (error) => {
+        console.log('Socket connection error, using polling fallback');
+      });
+    } catch (err) {
+      console.log('Socket.io not available, using polling only');
+    }
 
     return () => {
       clearInterval(interval);
-      socket.off('queue_ready');
+      try {
+        socket.off('queue_ready');
+        socket.off('connect_error');
+      } catch (err) {
+        // Ignore socket cleanup errors
+      }
     };
   }, [queueToken, socket, onQueueReady]);
 
@@ -48,152 +84,66 @@ function QueueWaiting({ queueToken, socket, onQueueReady }) {
 
   if (!queueToken || loading) {
     return (
-      <div style={styles.container}>
-        <div style={styles.card}>
-          <div style={styles.loaderContainer}>
-            <div style={styles.loader}></div>
-          </div>
-          <p style={styles.message}>Loading queue status...</p>
-        </div>
+      <div style={{ textAlign: 'center', paddingTop: '60px' }}>
+        <div className="loader"></div>
+        <p style={{ fontSize: '18px', color: '#1a237e', fontWeight: 500 }}>Loading queue status...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div style={{ textAlign: 'center', paddingTop: '60px' }}>
+        <div style={{ fontSize: '48px', marginBottom: '20px' }}>❌</div>
+        <h2 style={{ color: '#c62828', marginBottom: '15px' }}>Queue Error</h2>
+        <p style={{ fontSize: '16px', color: '#666', marginBottom: '25px' }}>{error}</p>
+        <button onClick={() => window.location.reload()} className="btn btn-primary">
+          Refresh Page
+        </button>
       </div>
     );
   }
 
   return (
-    <div style={styles.container}>
-      <div style={styles.card}>
-        <div style={styles.iconContainer}>
-          <span style={styles.icon}>⏳</span>
-        </div>
-        <h2 style={styles.title}>You're in the Queue</h2>
-        <p style={styles.subtitle}>Please keep this window open</p>
-        
-        <div style={styles.statsContainer}>
-          <div style={styles.statBox}>
-            <div style={styles.statNumber}>{status.position}</div>
-            <div style={styles.statLabel}>Your Position</div>
+    <div>
+      <div className="page-title-section">
+        <span className="page-icon">⏳</span>
+        <h2 className="page-title">You're in the Queue</h2>
+        <p className="page-subtitle">Please keep this window open</p>
+      </div>
+
+      <div className="card card-medium">
+        <div className="stats-row">
+          <div className="stat-box">
+            <div className="stat-number">{status.position}</div>
+            <div className="stat-label">Your Position</div>
           </div>
-          <div style={styles.statBox}>
-            <div style={styles.statNumber}>{status.queueLength}</div>
-            <div style={styles.statLabel}>Queue Length</div>
+          <div className="stat-box">
+            <div className="stat-number">{status.queueLength}</div>
+            <div className="stat-label">Queue Length</div>
           </div>
-          <div style={styles.statBox}>
-            <div style={styles.statNumber}>{Math.floor(countdown / 60)}:{String(countdown % 60).padStart(2, '0')}</div>
-            <div style={styles.statLabel}>Est. Wait (mm:ss)</div>
+          <div className="stat-box">
+            <div className="stat-number">{Math.floor(countdown / 60)}:{String(countdown % 60).padStart(2, '0')}</div>
+            <div className="stat-label">Est. Wait (mm:ss)</div>
           </div>
         </div>
 
-        <div style={styles.progressContainer}>
-          <div style={styles.progressBar}>
-            <div style={{
-              ...styles.progressFill,
+        <div className="progress-container">
+          <div className="progress-bar">
+            <div className="progress-fill" style={{
               width: `${Math.max(5, 100 - (status.position / status.queueLength * 100))}%`
             }}></div>
           </div>
         </div>
 
-        <div style={styles.loaderContainer}>
-          <div style={styles.loader}></div>
-        </div>
+        <div className="loader"></div>
 
-        <p style={styles.message}>✨ Hang tight! You'll be redirected automatically when it's your turn</p>
+        <p style={{ fontSize: '16px', color: '#666', fontStyle: 'italic', textAlign: 'center' }}>
+          ✨ Hang tight! You'll be redirected automatically when it's your turn
+        </p>
       </div>
     </div>
   );
 }
-
-const styles = {
-  container: {
-    minHeight: '100vh',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: '20px',
-    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
-  },
-  card: {
-    background: 'white',
-    borderRadius: '20px',
-    padding: '50px 40px',
-    maxWidth: '600px',
-    width: '100%',
-    boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
-    textAlign: 'center'
-  },
-  iconContainer: {
-    marginBottom: '20px'
-  },
-  icon: {
-    fontSize: '80px',
-    display: 'inline-block',
-    animation: 'spin 2s linear infinite'
-  },
-  title: {
-    fontSize: '32px',
-    fontWeight: '700',
-    color: '#333',
-    marginBottom: '10px'
-  },
-  subtitle: {
-    fontSize: '16px',
-    color: '#666',
-    marginBottom: '40px'
-  },
-  statsContainer: {
-    display: 'flex',
-    justifyContent: 'space-around',
-    marginBottom: '30px',
-    gap: '20px'
-  },
-  statBox: {
-    flex: 1,
-    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-    borderRadius: '12px',
-    padding: '20px',
-    color: 'white'
-  },
-  statNumber: {
-    fontSize: '36px',
-    fontWeight: '700',
-    marginBottom: '8px'
-  },
-  statLabel: {
-    fontSize: '14px',
-    opacity: 0.9
-  },
-  progressContainer: {
-    marginBottom: '30px'
-  },
-  progressBar: {
-    width: '100%',
-    height: '12px',
-    background: '#e9ecef',
-    borderRadius: '10px',
-    overflow: 'hidden'
-  },
-  progressFill: {
-    height: '100%',
-    background: 'linear-gradient(90deg, #667eea 0%, #764ba2 100%)',
-    transition: 'width 0.5s ease',
-    borderRadius: '10px'
-  },
-  loaderContainer: {
-    marginBottom: '20px'
-  },
-  loader: {
-    border: '4px solid #f3f3f3',
-    borderTop: '4px solid #667eea',
-    borderRadius: '50%',
-    width: '50px',
-    height: '50px',
-    animation: 'spin 1s linear infinite',
-    margin: '0 auto'
-  },
-  message: {
-    fontSize: '16px',
-    color: '#666',
-    fontStyle: 'italic'
-  }
-};
 
 export default QueueWaiting;
