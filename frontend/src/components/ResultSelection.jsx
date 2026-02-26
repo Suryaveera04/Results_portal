@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import { resultLinksAPI } from '../services/api';
 
 function ResultSelection({ onSelectionComplete, programType }) {
   const [formData, setFormData] = useState({
@@ -46,17 +46,15 @@ function ResultSelection({ onSelectionComplete, programType }) {
     
     setLoading(true);
     try {
-      const response = await axios.get('http://localhost:5000/api/result-links/available', {
-        params: {
-          programType,
-          programName: formData.programName,
-          yearSemester: formData.yearSemester,
-          regulation: formData.regulation,
-          examType: formData.examType
-        }
+      const { data } = await resultLinksAPI.getAvailable({
+        programType,
+        programName: formData.programName,
+        yearSemester: formData.yearSemester,
+        regulation: formData.regulation,
+        examType: formData.examType
       });
-      setAvailableLinks(response.data.links);
-      if (response.data.links.length === 0) {
+      setAvailableLinks(data.links);
+      if (data.links.length === 0) {
         alert('No results found for the selected criteria');
       }
     } catch (error) {

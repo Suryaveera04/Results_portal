@@ -26,3 +26,7 @@ export const resultAPI = {
   download: () => api.get('/result/download', { responseType: 'blob' }),
   email: () => api.post('/result/email')
 };
+
+export const resultLinksAPI = {
+  getAvailable: (params) => api.get('/result-links/available', { params })
+};
