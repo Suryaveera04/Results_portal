@@ -75,7 +75,7 @@ function Login({ queueToken: propQueueToken, resultConfig: propResultConfig, onL
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [queueToken, resultConfig, navigate]);
+  }, [propQueueToken, queueToken, resultConfig, navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();

@@ -11,6 +11,17 @@ function ResultView() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
 
+  const handleLogout = React.useCallback(async () => {
+    try {
+      await authAPI.logout();
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
+    localStorage.clear();
+    alert('Session expired. You have been logged out.');
+    navigate('/');
+  }, [navigate]);
+
   useEffect(() => {
     const fetchResult = async () => {
       try {
@@ -49,18 +60,7 @@ function ResultView() {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, []);
-
-  const handleLogout = async () => {
-    try {
-      await authAPI.logout();
-    } catch (error) {
-      console.error('Logout error:', error);
-    }
-    localStorage.clear();
-    alert('Session expired. You have been logged out.');
-    navigate('/');
-  };
+  }, [handleLogout, navigate]);
 
   const handleDownload = async () => {
     try {

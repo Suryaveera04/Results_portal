@@ -62,7 +62,7 @@ function ResultFlow({ programType }) {
         };
         window.addEventListener('beforeunload', handleBeforeUnload);
         return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-    }, []);
+    }, [basePath, navigate]);
 
     const handleQueueReady = () => {
         console.log('=== Queue Ready Handler ===');
